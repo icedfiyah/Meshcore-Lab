@@ -1,0 +1,6 @@
+{
+  "name": "MeshCore Lab",
+  "description": "Diagnostic companion protocol tool, packet editor, offline robustness tester, and research interface for MeshCore radios over BLE.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
