@@ -34,7 +34,7 @@ class FakeMeshTransport(
     private val _deviceInfo = MutableStateFlow<DeviceInfo?>(null)
     override val deviceInfo: StateFlow<DeviceInfo?> = _deviceInfo.asStateFlow()
 
-    private val _logStream = MutableSharedFlow<LogEntry>(extraBufferCapacity = 256)
+    private val _logStream = MutableSharedFlow<LogEntry>(replay = 10, extraBufferCapacity = 256)
     override val logStream: SharedFlow<LogEntry> = _logStream.asSharedFlow()
 
     override val isSimulated: Boolean = true

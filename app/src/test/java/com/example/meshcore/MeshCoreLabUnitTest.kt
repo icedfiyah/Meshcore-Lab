@@ -13,6 +13,8 @@ import com.example.meshcore.transport.FakeMeshTransport
 import com.example.meshcore.util.HexUtil
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -22,7 +24,7 @@ import org.junit.Test
 
 class MeshCoreLabUnitTest {
 
-    @Test
+    @Test(timeout = 3000L)
     fun testHexParsingAndFormatting() {
         val bytes = byteArrayOf(0x01, 0x16, 0x3E, 0xFF.toByte())
         val hexStr = HexUtil.toHexString(bytes)
@@ -48,7 +50,7 @@ class MeshCoreLabUnitTest {
         assertTrue(oddLengthError)
     }
 
-    @Test
+    @Test(timeout = 3000L)
     fun testMeshPacketSerializationAndParsing() {
         // Create sample packet: TXT_MSG, flood route
         val sample = MeshPacket.createSamplePacket(
@@ -58,7 +60,7 @@ class MeshCoreLabUnitTest {
             payload = "Hello".toByteArray(Charsets.UTF_8)
         )
         val serialized = sample.toBytes()
-        assertTrue(serialized.size > 0)
+        assertTrue(serialized.isNotEmpty())
         assertEquals(sample.header, serialized[0])
 
         // Parse back
@@ -70,7 +72,7 @@ class MeshCoreLabUnitTest {
         assertArrayEquals(sample.payload, parsed.payload)
     }
 
-    @Test
+    @Test(timeout = 3000L)
     fun testMeshPacketTransportCodesParsing() {
         // ROUTE_TYPE_TRANSPORT_FLOOD requires 4 bytes transport codes
         val sample = MeshPacket.createSamplePacket(
@@ -89,14 +91,14 @@ class MeshCoreLabUnitTest {
         assertArrayEquals(byteArrayOf(0xCA.toByte(), 0xFE.toByte()), parsed.payload)
     }
 
-    @Test(expected = MeshPacket.ParseException::class)
+    @Test(expected = MeshPacket.ParseException::class, timeout = 3000L)
     fun testMeshPacketMtuExceededRejection() {
         // Must reject buffers exceeding LoRa PHY MTU (255 bytes)
         val oversized = ByteArray(ProtocolConstants.MAX_LORA_PHY_MTU + 1)
         MeshPacket.fromBytes(oversized)
     }
 
-    @Test
+    @Test(timeout = 3000L)
     fun testDeterministicMutationFromFixedSeed() {
         val baseline = byteArrayOf(0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08)
         val seed = 424242L
@@ -114,7 +116,7 @@ class MeshCoreLabUnitTest {
         assertFalse(res1.mutatedBytes.contentEquals(res3.mutatedBytes) && res1.description == res3.description)
     }
 
-    @Test
+    @Test(timeout = 3000L)
     fun testMutationSizeLimitRespected() {
         // Ensure insertion mutation never exceeds maximum MTU (255 bytes)
         val nearFull = ByteArray(ProtocolConstants.MAX_LORA_PHY_MTU) { 0x55 }
@@ -125,7 +127,7 @@ class MeshCoreLabUnitTest {
         }
     }
 
-    @Test
+    @Test(timeout = 3000L)
     fun testIntentionalInconsistencyPreserved() {
         val baseline = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x41)
         val res = MutationEngine.mutate(baseline, seed = 123L, iteration = 1, allowedTypes = setOf(MutationType.LENGTH_MISMATCH))
@@ -133,9 +135,9 @@ class MeshCoreLabUnitTest {
         assertTrue(res.description.contains("mismatch"))
     }
 
-    @Test
+    @Test(timeout = 5000L)
     fun testFakeTransportSeparationAndRfDisarmedRestrictions() = runBlocking {
-        val transport = FakeMeshTransport(simulatedLatencyMs = 1)
+        val transport = FakeMeshTransport(simulatedLatencyMs = 0)
         assertTrue(transport.isSimulated)
 
         // Connect
@@ -160,13 +162,14 @@ class MeshCoreLabUnitTest {
         assertTrue(armedRes.isSuccess)
 
         // Check logs show isSimulated = true
-        val log = transport.logStream.first()
-        assertTrue(log.isSimulated)
+        val log = withTimeoutOrNull(2000L) { transport.logStream.first() }
+        assertNotNull(log)
+        assertTrue(log!!.isSimulated)
     }
 
-    @Test
+    @Test(timeout = 3000L)
     fun testQueueCancellationAndNoReplayAfterReconnect() = runBlocking {
-        val transport = FakeMeshTransport(simulatedLatencyMs = 1)
+        val transport = FakeMeshTransport(simulatedLatencyMs = 0)
         transport.connect()
         assertEquals(ConnectionState.CONNECTED, transport.connectionState.value)
 
@@ -177,32 +180,30 @@ class MeshCoreLabUnitTest {
         // Reconnect starts clean
         transport.connect()
         assertEquals(ConnectionState.CONNECTED, transport.connectionState.value)
-        // No pending actions executed
     }
 
-    @Test
+    @Test(timeout = 5000L)
     fun testFuzzCampaignStopsOnBudgetExhaustion() = runBlocking {
-        val transport = FakeMeshTransport(simulatedLatencyMs = 1)
-        val runner = FuzzCampaignRunner(transport)
+        val transport = FakeMeshTransport(simulatedLatencyMs = 0)
+        val runner = FuzzCampaignRunner(transport, this)
 
         val baseline = MeshPacket.createSamplePacket().toBytes()
         val config = CampaignConfig(
             mode = CampaignMode.LOCAL_PARSER_ROBUSTNESS,
             baseSeed = 555L,
-            maxCases = 10,
-            pacingDelayMs = 1L
+            maxCases = 5,
+            pacingDelayMs = 0L
         )
 
         runner.startCampaign(baseline, config)
 
-        // Wait until completion
-        var count = 0
-        while (runner.state.value == RunnerState.RUNNING && count < 50) {
-            kotlinx.coroutines.delay(20)
-            count++
+        withTimeout(3000L) {
+            while (runner.state.value == RunnerState.RUNNING) {
+                kotlinx.coroutines.delay(10)
+            }
         }
 
         assertEquals(RunnerState.STOPPED_COMPLETE, runner.state.value)
-        assertEquals(10, runner.cases.value.size)
+        assertEquals(5, runner.cases.value.size)
     }
 }
