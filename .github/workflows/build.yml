@@ -30,7 +30,7 @@ jobs:
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
           else
-            gradle wrapper --gradle-version 8.9
+            gradle wrapper --gradle-version 9.3.1
             chmod +x ./gradlew
           fi
 
