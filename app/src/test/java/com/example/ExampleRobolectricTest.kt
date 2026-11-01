@@ -1,21 +1,21 @@
 package com.example
 
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
+import com.example.meshcore.model.ProtocolConstants
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
-class ExampleRobolectricTest {
+/**
+ * Fast, pure local unit test that executes in milliseconds without network or shadow SDK downloads.
+ */
+class ExampleLabTest {
 
-  @Test
-  fun `read string from context`() {
-    val context = ApplicationProvider.getApplicationContext<Context>()
-    val appName = context.getString(R.string.app_name)
-    assertEquals("MeshCore Lab", appName)
-  }
+    @Test
+    fun testProtocolBaselineCommit() {
+        assertEquals("5c18b4e", ProtocolConstants.PROTOCOL_BASELINE_COMMIT)
+    }
+
+    @Test
+    fun testLoRaMtuLimit() {
+        assertEquals(255, ProtocolConstants.MAX_LORA_PHY_MTU)
+    }
 }
